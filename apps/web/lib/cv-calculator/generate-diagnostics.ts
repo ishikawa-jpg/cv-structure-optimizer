@@ -1,4 +1,4 @@
-import type { DiagnosticsJson, Alert, RecommendationItem } from '@cv-optimizer/shared-types'
+import type { DiagnosticsJson, Alert, RecommendationItem } from '@/lib/types'
 import type { CPAStatus } from '@/lib/statistics'
 import type { CVRJudgment } from '@/lib/statistics'
 import { decideProposalCount } from '@/lib/statistics'

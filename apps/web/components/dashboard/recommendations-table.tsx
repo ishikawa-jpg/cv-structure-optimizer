@@ -1,4 +1,4 @@
-import type { RecommendationItem } from '@cv-optimizer/shared-types'
+import type { RecommendationItem } from '@/lib/types'
 
 interface RecommendationsTableProps {
   items: RecommendationItem[]

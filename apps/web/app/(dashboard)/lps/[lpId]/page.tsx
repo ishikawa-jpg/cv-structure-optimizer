@@ -9,7 +9,7 @@ import { MonthlyProposals } from '@/components/dashboard/monthly-proposals'
 import { GA4Todos } from '@/components/dashboard/ga4-todos'
 import { TrendChart } from '@/components/dashboard/trend-chart'
 import { ComputeButton } from '@/components/dashboard/compute-button'
-import type { PerformanceMonth, DiagnosticsJson, RecommendationsJson } from '@cv-optimizer/shared-types'
+import type { PerformanceMonth, DiagnosticsJson, RecommendationsJson } from '@/lib/types'
 
 export default async function LPDetailPage({
   params,

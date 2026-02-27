@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { GA4Todo } from '@cv-optimizer/shared-types'
+import type { GA4Todo } from '@/lib/types'
 
 interface GA4TodosProps {
   todos: GA4Todo[]

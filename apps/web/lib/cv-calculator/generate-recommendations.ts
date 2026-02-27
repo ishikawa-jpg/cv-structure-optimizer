@@ -1,4 +1,4 @@
-import type { RecommendationItem, RecommendationsJson } from '@cv-optimizer/shared-types'
+import type { RecommendationItem, RecommendationsJson } from '@/lib/types'
 import type { EventCountResult } from '@/lib/ga4/data-api'
 import { calcCVValue, type EventType } from './calc-cv-value'
 

@@ -1,4 +1,4 @@
-import type { MonthlyProposal } from '@cv-optimizer/shared-types'
+import type { MonthlyProposal } from '@/lib/types'
 
 interface MonthlyProposalsProps {
   proposals: MonthlyProposal[]

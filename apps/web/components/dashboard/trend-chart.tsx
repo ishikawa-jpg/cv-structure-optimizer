@@ -1,7 +1,7 @@
 'use client'
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import type { PerformanceMonth } from '@cv-optimizer/shared-types'
+import type { PerformanceMonth } from '@/lib/types'
 
 interface TrendChartProps {
   performances: PerformanceMonth[]

@@ -1,4 +1,4 @@
-import type { Alert } from '@cv-optimizer/shared-types'
+import type { Alert } from '@/lib/types'
 
 interface AlertBannersProps {
   alerts: Alert[]

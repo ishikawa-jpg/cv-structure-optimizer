@@ -1,4 +1,4 @@
-import type { Confidence } from '@cv-optimizer/shared-types'
+import type { Confidence } from '@/lib/types'
 
 export type EventType = 'form_start' | 'form_view' | 'cta_click' | 'section_view' | 'scroll' | 'other'
 

@@ -1,4 +1,4 @@
-import type { PerformanceMonth } from '@cv-optimizer/shared-types'
+import type { PerformanceMonth } from '@/lib/types'
 
 interface PerformanceComparisonProps {
   current: PerformanceMonth

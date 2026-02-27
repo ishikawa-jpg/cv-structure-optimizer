@@ -1,4 +1,4 @@
-import type { CPAStatus, CVRJudgment } from '@cv-optimizer/shared-types'
+import type { CPAStatus, CVRJudgment } from '@/lib/types'
 
 export type ProposalCount = 0 | 1 | 2
 
