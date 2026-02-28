@@ -9,6 +9,7 @@ import { MonthlyProposals } from '@/components/dashboard/monthly-proposals'
 import { GA4Todos } from '@/components/dashboard/ga4-todos'
 import { TrendChart } from '@/components/dashboard/trend-chart'
 import { ComputeButton } from '@/components/dashboard/compute-button'
+import { AnalyzeButton } from '@/components/dashboard/analyze-button'
 import type { PerformanceMonth, DiagnosticsJson, RecommendationsJson } from '@/lib/types'
 
 export default async function LPDetailPage({
@@ -93,6 +94,7 @@ export default async function LPDetailPage({
           >
             月次データ入力
           </Link>
+          <AnalyzeButton lpId={lpId} />
           <ComputeButton lpId={lpId} yearMonth={yearMonth} hasGA4={hasGA4} />
         </div>
       </div>
