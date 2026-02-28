@@ -86,7 +86,8 @@ export async function analyzeLp(url: string): Promise<LPAnalysisResult> {
     const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight)
 
     // --- CTA 抽出 ---
-    const ctas: CTAElement[] = await page.evaluate((height: number) => {
+    type RawCTA = { text: string; href: string | null; tag: string; id: string; className: string; y: number; isSticky: boolean }
+    const ctas: RawCTA[] = await page.evaluate((height: number) => {
       const results: Array<{
         text: string
         href: string | null
