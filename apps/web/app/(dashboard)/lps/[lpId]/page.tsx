@@ -110,15 +110,15 @@ export default async function LPDetailPage({
       )}
 
       {/* スコア + アラート */}
-      {diagnostics && (
+      {diagnostics && diagnostics.score_breakdown && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
           <ScoreDisplay
-            score={diagnostics.score}
+            score={diagnostics.score ?? 0}
             breakdown={diagnostics.score_breakdown}
           />
           <div className="space-y-2">
             <h3 className="font-semibold text-gray-900">アラート</h3>
-            <AlertBanners alerts={diagnostics.alerts} />
+            <AlertBanners alerts={diagnostics.alerts ?? []} />
           </div>
         </div>
       )}

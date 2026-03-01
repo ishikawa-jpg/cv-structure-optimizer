@@ -38,10 +38,10 @@ function ScoreCircle({ score }: { score: number }) {
 
 export function ScoreDisplay({ score, breakdown }: ScoreDisplayProps) {
   const items = [
-    { label: 'シグナル網羅性', value: breakdown.signal_coverage, max: 30 },
-    { label: '値段差構造', value: breakdown.value_separation, max: 30 },
-    { label: 'データ信頼性', value: breakdown.data_reliability, max: 25 },
-    { label: 'ノイズリスク', value: breakdown.noise_risk, max: 15 },
+    { label: 'シグナル網羅性', value: breakdown?.signal_coverage ?? 0, max: 30 },
+    { label: '値段差構造', value: breakdown?.value_separation ?? 0, max: 30 },
+    { label: 'データ信頼性', value: breakdown?.data_reliability ?? 0, max: 25 },
+    { label: 'ノイズリスク', value: breakdown?.noise_risk ?? 0, max: 15 },
   ]
 
   return (

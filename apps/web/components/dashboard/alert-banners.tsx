@@ -11,7 +11,7 @@ const LEVEL_CONFIG = {
 }
 
 export function AlertBanners({ alerts }: AlertBannersProps) {
-  if (alerts.length === 0) {
+  if (!alerts || alerts.length === 0) {
     return (
       <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
         <span className="text-green-600 font-bold text-sm">OK</span>
