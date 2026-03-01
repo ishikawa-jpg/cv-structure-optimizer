@@ -134,7 +134,7 @@ export async function POST(
       hasAnchorJumpRisk: (lpAnalysis as { flags?: { has_anchor_jump_risk?: boolean } } | null)?.flags?.has_anchor_jump_risk,
       finalCvCount: currentPerf?.final_cv,
       currentCpa: currentPerf?.cpa,
-      finalEventCountA: eventsA[lp.final_event_name] ?? 0,
+      finalEventCountA: eventsA.find((e) => e.event_name === lp.final_event_name)?.count ?? 0,
     })
 
     // design_versions に保存
