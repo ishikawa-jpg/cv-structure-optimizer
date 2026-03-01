@@ -204,7 +204,8 @@ export function generateDiagnostics(input: DiagnosticsInput): DiagnosticsJson {
       event_name: 'cta_click',
     })
   }
-  if (!input.finalEventCountA || input.finalEventCountA === 0) {
+  const keyEventConfirmed = (input.finalEventCountA ?? 0) > 0 || (input.finalCvCount ?? 0) > 0
+  if (!keyEventConfirmed) {
     ga4_todos.push({
       category: 'key_event' as const,
       title: 'キーイベント設定の確認',
