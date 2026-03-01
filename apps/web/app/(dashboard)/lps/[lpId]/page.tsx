@@ -144,7 +144,7 @@ export default async function LPDetailPage({
       </div>
 
       {/* 月次提案 */}
-      {diagnostics && diagnostics.monthly_proposals.length > 0 && (
+      {diagnostics && (diagnostics.monthly_proposals?.length ?? 0) > 0 && (
         <div className="mb-4">
           <MonthlyProposals proposals={diagnostics.monthly_proposals} />
         </div>
@@ -161,7 +161,7 @@ export default async function LPDetailPage({
       )}
 
       {/* GA4/GTM ToDo */}
-      {diagnostics && diagnostics.ga4_todos.length > 0 && (
+      {diagnostics && (diagnostics.ga4_todos?.length ?? 0) > 0 && (
         <div className="mb-4">
           <GA4Todos todos={diagnostics.ga4_todos} />
         </div>
