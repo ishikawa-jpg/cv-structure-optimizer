@@ -204,6 +204,8 @@ export function generateDiagnostics(input: DiagnosticsInput): DiagnosticsJson {
       event_name: 'cta_click',
     })
   }
+  // NOTE: キーイベント設定の確認は「今月のfinal_cv > 0」または「GA4の当月イベント数 > 0」で
+  // 設定済みと判断して非表示にする。当月に1件も変換がない場合は検出できないため常に表示される。
   const keyEventConfirmed = (input.finalEventCountA ?? 0) > 0 || (input.finalCvCount ?? 0) > 0
   if (!keyEventConfirmed) {
     ga4_todos.push({
