@@ -18,6 +18,7 @@ interface DiagnosticsInput {
   hasAnchorJumpRisk?: boolean
   finalCvCount?: number
   currentCpa?: number | null
+  finalEventCountA?: number
 }
 
 const ALERT_MESSAGES: Record<string, string> = {
@@ -203,18 +204,20 @@ export function generateDiagnostics(input: DiagnosticsInput): DiagnosticsJson {
       event_name: 'cta_click',
     })
   }
-  ga4_todos.push({
-    category: 'key_event' as const,
-    title: 'キーイベント設定の確認',
-    description: '最終CVイベントがGA4のキーイベントとして正しく設定されているか確認する',
-    steps: [
-      '1. GA4管理画面 > イベントを開く',
-      '2. 最終CVイベント名を検索する',
-      '3. 「キーイベントとしてマーク」がONになっているか確認',
-      '4. ONでなければ切り替える',
-    ],
-    priority: 'high' as const,
-  })
+  if (!input.finalEventCountA || input.finalEventCountA === 0) {
+    ga4_todos.push({
+      category: 'key_event' as const,
+      title: 'キーイベント設定の確認',
+      description: '最終CVイベントがGA4のキーイベントとして正しく設定されているか確認する',
+      steps: [
+        '1. GA4管理画面 > イベントを開く',
+        '2. 最終CVイベント名を検索する',
+        '3. 「キーイベントとしてマーク」がONになっているか確認',
+        '4. ONでなければ切り替える',
+      ],
+      priority: 'high' as const,
+    })
+  }
 
   return {
     score: input.totalCvScore,
