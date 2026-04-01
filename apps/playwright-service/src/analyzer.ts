@@ -81,7 +81,7 @@ export async function analyzeLp(url: string): Promise<LPAnalysisResult> {
     })
     const page = await context.newPage()
 
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 20000 })
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
     const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight)
 
