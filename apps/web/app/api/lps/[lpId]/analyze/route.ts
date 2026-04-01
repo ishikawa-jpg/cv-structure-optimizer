@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { analyzeLp } from '@/lib/lp-analyzer/analyzer'
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ lpId: string }> }
 ) {
   const { lpId } = await params
@@ -19,40 +20,20 @@ export async function POST(
 
   if (!lp) return NextResponse.json({ data: null, error: { code: 'NOT_FOUND', message: 'LPが見つかりません' } }, { status: 404 })
 
-  const serviceUrl = process.env.PLAYWRIGHT_SERVICE_URL
-  const serviceSecret = process.env.PLAYWRIGHT_SERVICE_SECRET
-
-  if (!serviceUrl || !serviceSecret) {
-    return NextResponse.json(
-      { data: null, error: { code: 'SERVICE_NOT_CONFIGURED', message: 'LP解析サービスが設定されていません' } },
-      { status: 503 }
-    )
-  }
+  const body = await request.json().catch(() => ({}))
+  const yearMonth: string = body.year_month || new Date().toISOString().substring(0, 7)
 
   try {
-    const res = await fetch(`${serviceUrl}/analyze`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-service-secret': serviceSecret,
-      },
-      body: JSON.stringify({ url: lp.url }),
-      signal: AbortSignal.timeout(35000), // 35秒タイムアウト
-    })
+    const analysisResult = await analyzeLp(lp.url)
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ error: 'Unknown error' }))
-      const code = res.status === 504 ? 'TIMEOUT' : 'ANALYZE_ERROR'
+    if (analysisResult.error) {
       return NextResponse.json(
-        { data: null, error: { code, message: errData.error || 'LP解析に失敗しました' } },
-        { status: res.status }
+        { data: null, error: { code: 'ANALYZE_ERROR', message: analysisResult.error } },
+        { status: 502 }
       )
     }
 
-    const analysisResult = await res.json()
-
-    // 解析結果をdesign_versionsに保存（現在月のバージョンに紐付け）
-    const yearMonth = new Date().toISOString().substring(0, 7)
+    // 解析結果をdesign_versionsに保存
     await supabase
       .from('design_versions')
       .upsert(
@@ -68,15 +49,9 @@ export async function POST(
     return NextResponse.json({ data: analysisResult, error: null })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
-    if (message.includes('timeout') || message.includes('AbortError')) {
-      return NextResponse.json(
-        { data: null, error: { code: 'TIMEOUT', message: 'LP解析がタイムアウトしました。再試行してください。' } },
-        { status: 504 }
-      )
-    }
     return NextResponse.json(
-      { data: null, error: { code: 'NETWORK_ERROR', message: 'LP解析サービスへの接続に失敗しました' } },
-      { status: 503 }
+      { data: null, error: { code: 'ANALYZE_ERROR', message: `LP解析に失敗しました: ${message}` } },
+      { status: 500 }
     )
   }
 }
