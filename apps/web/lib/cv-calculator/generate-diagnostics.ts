@@ -3,6 +3,13 @@ import type { CPAStatus } from '@/lib/statistics'
 import type { CVRJudgment } from '@/lib/statistics'
 import { decideProposalCount } from '@/lib/statistics'
 
+interface LPAnalysisData {
+  ctas?: Array<{ text: string; selector_candidates: string[]; position: string }>
+  forms?: Array<{ selector_candidates: string[]; in_iframe: boolean }>
+  sections?: Array<{ section_name_guess: string; heading_text: string }>
+  flags?: { has_anchor_jump_risk?: boolean }
+}
+
 interface DiagnosticsInput {
   recommendations: RecommendationItem[]
   cpaStatus: CPAStatus
@@ -19,6 +26,11 @@ interface DiagnosticsInput {
   finalCvCount?: number
   currentCpa?: number | null
   finalEventCountA?: number
+  lpAnalysis?: LPAnalysisData | null
+  prevMonthEventCounts?: Record<string, number>
+  currentClicks?: number
+  currentCost?: number
+  currentCvr?: number
 }
 
 const ALERT_MESSAGES: Record<string, string> = {
@@ -30,11 +42,58 @@ const ALERT_MESSAGES: Record<string, string> = {
   VALUE_TOO_UNIFORM: 'CV値に段差がありません。アルゴリズムがシグナルを区別できない可能性があります。',
   CPA_EXCEED_RED: '目標CPAを15%以上超過しています。',
   FINAL_CV_NEGLECT_RISK: '中間CV値が70以上かつ目標CPA超過が続いています。最終CV軽視リスクがあります。',
+  EVENT_TRACKING_STOPPED: 'イベントの計測が停止している可能性があります。先月あったイベントが今月0件です。GTMのタグを確認してください。',
+  EVENT_TRACKING_DECLINED: '一部イベントの計測数が先月比70%以上減少しています。タグの動作を確認してください。',
+  CPC_CVR_IMBALANCE: 'クリック単価が高くCVRが低い状態でCV値が高いイベントが設定されています。中間CVに予算が偏るリスクがあります。',
 }
 
 function generateAlerts(input: DiagnosticsInput): Alert[] {
   const alerts: Alert[] = []
-  const { recommendations, cpaStatus, finalCvCount, hasAnchorJumpRisk } = input
+  const { recommendations, cpaStatus, finalCvCount, hasAnchorJumpRisk,
+          prevMonthEventCounts, currentClicks, currentCost, currentCvr } = input
+
+  // EVENT_TRACKING_STOPPED（critical）: 先月50件以上 → 今月0件
+  if (prevMonthEventCounts) {
+    const stoppedEvents = recommendations.filter(r => {
+      const prevCount = prevMonthEventCounts[r.event_name] ?? 0
+      return prevCount >= 50 && r.count_a_event === 0
+    })
+    if (stoppedEvents.length > 0) {
+      alerts.push({
+        level: 'critical',
+        code: 'EVENT_TRACKING_STOPPED',
+        message: `${stoppedEvents.map(e => e.label).join('、')} の計測が停止している可能性があります。先月あったイベントが今月0件です。GTMのタグを確認してください。`,
+      })
+    }
+  }
+
+  // EVENT_TRACKING_DECLINED（warning）: 先月100件以上 → 今月30%未満（0件は除く）
+  if (prevMonthEventCounts) {
+    const declinedEvents = recommendations.filter(r => {
+      const prevCount = prevMonthEventCounts[r.event_name] ?? 0
+      return prevCount >= 100 && r.count_a_event > 0 && r.count_a_event < prevCount * 0.3
+    })
+    if (declinedEvents.length > 0) {
+      alerts.push({
+        level: 'warning',
+        code: 'EVENT_TRACKING_DECLINED',
+        message: `${declinedEvents.map(e => e.label).join('、')} の計測数が先月比70%以上減少しています。タグの動作を確認してください。`,
+      })
+    }
+  }
+
+  // CPC_CVR_IMBALANCE（warning）: CPC > 300円 AND CVR < 1% AND 最大CV値 > 50
+  if (currentClicks && currentClicks > 0 && currentCost && currentCvr !== undefined) {
+    const cpc = currentCost / currentClicks
+    const maxCvValue = recommendations.length > 0 ? Math.max(...recommendations.map(r => r.cv_value)) : 0
+    if (cpc > 300 && currentCvr < 0.01 && maxCvValue > 50) {
+      alerts.push({
+        level: 'warning',
+        code: 'CPC_CVR_IMBALANCE',
+        message: ALERT_MESSAGES.CPC_CVR_IMBALANCE,
+      })
+    }
+  }
 
   // INFO
   if (recommendations.some((r) => r.count_b_final < 15 && r.estimation_method !== 'eventCount_ratio')) {
@@ -172,30 +231,46 @@ export function generateDiagnostics(input: DiagnosticsInput): DiagnosticsJson {
   const hasFormStart = recommendations.some((r) => r.event_name === 'form_start')
   const hasCtaClick = recommendations.some((r) => r.event_name.startsWith('cta_click'))
   const ga4_todos = []
+  const lp = input.lpAnalysis
 
   if (!hasFormStart) {
+    const formSelector = lp?.forms?.[0]?.selector_candidates?.[0]
+    const inIframe = lp?.forms?.[0]?.in_iframe
     ga4_todos.push({
       category: 'gtm_tag' as const,
       title: 'form_start タグ実装',
-      description: 'フォーム入力開始をGA4イベントとして計測する',
+      description: formSelector
+        ? `LP解析でフォームを検出しました（${formSelector}）。フォーム入力開始イベント（form_start）を計測してください。`
+        : 'フォーム入力開始をGA4イベントとして計測する',
       steps: [
         '1. GTMでトリガーを作成: 「クリック - すべての要素」',
-        '2. 条件: フォームの最初の入力フィールドへのフォーカス',
+        formSelector
+          ? `2. 条件: Click Element が CSS セレクター「${formSelector}」内の input / textarea に一致`
+          : '2. 条件: フォームの最初の入力フィールドへのフォーカス',
         '3. タグ作成: GA4イベントタグ、イベント名: form_start',
-        '4. プレビューで動作確認後、公開する',
-      ],
+        inIframe ? '4. ※フォームがiframe内にあるため、GTMのiframe対応設定が必要です' : '4. プレビューで動作確認後、公開する',
+        inIframe ? '5. プレビューで動作確認後、公開する' : '',
+      ].filter(Boolean),
       priority: 'high' as const,
       event_name: 'form_start',
     })
   }
   if (!hasCtaClick) {
+    const ctasByPosition = lp?.ctas ?? []
+    const ctaSelectors = ctasByPosition
+      .map((c) => c.selector_candidates?.[0] ? `${c.position}: ${c.selector_candidates[0]}` : null)
+      .filter(Boolean)
     ga4_todos.push({
       category: 'gtm_tag' as const,
       title: 'cta_click タグ実装',
-      description: 'CTAボタンクリックをGA4イベントとして計測する',
+      description: ctasByPosition.length > 0
+        ? `LP解析で${ctasByPosition.length}件のCTAボタンを検出しました。クリック計測を追加してください。`
+        : 'CTAボタンクリックをGA4イベントとして計測する',
       steps: [
         '1. GTMでトリガーを作成: 「クリック - すべての要素」',
-        '2. 条件: Click ElementがCTAボタンのCSSセレクターに一致',
+        ctaSelectors.length > 0
+          ? `2. 検出されたCTAセレクター — ${ctaSelectors.join(' / ')}`
+          : '2. 条件: Click ElementがCTAボタンのCSSセレクターに一致',
         '3. タグ作成: GA4イベントタグ、イベント名: cta_click',
         '4. パラメータ: cta_text={{Click Text}}, cta_position=top/mid/bottom',
         '5. プレビューで動作確認後、公開する',
@@ -219,6 +294,103 @@ export function generateDiagnostics(input: DiagnosticsInput): DiagnosticsJson {
         '4. ONでなければ切り替える',
       ],
       priority: 'high' as const,
+    })
+  }
+
+  // form_view: form_startはあるがform_viewがない場合 → Signal Coverage改善
+  const hasFormView = recommendations.some((r) => r.event_name === 'form_view')
+  if (hasFormStart && !hasFormView) {
+    const formSelector = lp?.forms?.[0]?.selector_candidates?.[0]
+    ga4_todos.push({
+      category: 'gtm_tag' as const,
+      title: 'form_view タグ実装',
+      description: 'フォーム表示イベント（form_view）を追加することでSignal Coverageが改善し、スコアアップにつながります',
+      steps: [
+        '1. GTMでトリガーを作成: 「要素の表示」',
+        formSelector
+          ? `2. 条件: CSS セレクター「${formSelector}」が画面内に50%以上表示された時`
+          : '2. 条件: フォームのCSSセレクターが画面内に表示された時',
+        '3. タグ作成: GA4イベントタグ、イベント名: form_view',
+        '4. プレビューでフォームにスクロールした際に発火するか確認',
+        '5. 問題なければ公開する',
+      ],
+      priority: 'medium' as const,
+      event_name: 'form_view',
+    })
+  }
+
+  // section_view: イベント数が少なくsection_viewがない場合 → Signal Coverage改善
+  const hasSectionView = recommendations.some((r) => r.event_name.startsWith('section_view'))
+  if (!hasSectionView && recommendations.length < 4) {
+    const detectedSections = lp?.sections ?? []
+    const sectionExamples = detectedSections.slice(0, 3).map((s) => s.heading_text || s.section_name_guess).join('、')
+    ga4_todos.push({
+      category: 'gtm_tag' as const,
+      title: 'section_view タグ実装',
+      description: detectedSections.length > 0
+        ? `LP解析で${detectedSections.length}件のセクションを検出しました（${sectionExamples}）。各セクションの表示イベントを計測してください。`
+        : 'LPの主要セクション（料金、事例、問い合わせなど）の表示イベントを計測することで、訪問者の行動とCVの関係を把握できます',
+      steps: [
+        '1. GTMでトリガーを作成: 「要素の表示」',
+        detectedSections.length > 0
+          ? `2. 計測対象セクション: ${detectedSections.map((s) => s.section_name_guess).join(' / ')}`
+          : '2. 条件: 計測したいセクションのCSSセレクター（例: #price, .case-section）',
+        '3. タグ作成: GA4イベントタグ、イベント名: section_view',
+        '4. パラメータ: section_name = セクション名（例: price, case, contact）',
+        '5. 複数セクションがある場合はそれぞれにトリガーを作成する',
+      ],
+      priority: 'medium' as const,
+      event_name: 'section_view',
+    })
+  }
+
+  // scroll系が推奨に含まれる → より精度の高いイベントへの代替を促す（Noise Risk改善）
+  const hasScroll = recommendations.some((r) => r.event_name.startsWith('scroll'))
+  if (hasScroll) {
+    ga4_todos.push({
+      category: 'gtm_tag' as const,
+      title: 'scrollイベントの代替計測を追加',
+      description: 'scroll系イベントはCVとの相関が低くノイズになりやすく、スコアを下げます。より精度の高いイベント（section_view、cta_click等）を追加してscrollを推奨から外すことでスコアが改善します',
+      steps: [
+        '1. section_view または cta_click を先に実装する（別のToDoを参照）',
+        '2. 再診断後、scroll系が推奨リストから外れることを確認する',
+        '3. 外れない場合はGA4の「scroll」イベントのデータが多すぎる可能性 — LP改善を検討する',
+      ],
+      priority: 'medium' as const,
+    })
+  }
+
+  // B母数が全体的に低い → Data Reliability改善のアドバイス
+  const lowConfidenceCount = recommendations.filter((r) => r.confidence === 'low').length
+  if (lowConfidenceCount > 0 && lowConfidenceCount === recommendations.length) {
+    ga4_todos.push({
+      category: 'audience' as const,
+      title: '広告流入のCV実績を増やす',
+      description: '全イベントで広告流入からのCV数が不足しており、推奨値の信頼度が「低」になっています。計測期間を延ばすか、広告流入量を増やすことで信頼度とスコアが改善します',
+      steps: [
+        '1. 診断の対象期間を3ヶ月など長めに設定して再診断する',
+        '2. 広告のインプレッション・クリック数が少ない場合は予算・入札の見直しを検討する',
+        '3. 広告からのセッションが計測されているか GA4 > 集客 > トラフィック獲得 で確認する',
+        '4. utm_source=google, utm_medium=cpc が正しく付与されているか確認する',
+      ],
+      priority: 'medium' as const,
+    })
+  }
+
+  // CTAがあるがカスタムディメンション未設定 → Data Reliability・分析精度改善
+  if (hasCtaClick) {
+    ga4_todos.push({
+      category: 'custom_definition' as const,
+      title: 'cta_position カスタムディメンション登録',
+      description: 'GA4にcta_positionカスタムディメンションを登録することで、上部・中部・下部CTAのどれが効果的かをレポートで確認できるようになります',
+      steps: [
+        '1. GA4管理画面 > カスタム定義 > カスタムディメンション を開く',
+        '2. 「カスタムディメンションを作成」をクリック',
+        '3. ディメンション名: cta_position、スコープ: イベント、イベントパラメータ: cta_position',
+        '4. 保存する（反映まで最大48時間）',
+        '5. GTMのcta_clickタグにパラメータ cta_position = top / mid / bottom を追加する',
+      ],
+      priority: 'low' as const,
     })
   }
 

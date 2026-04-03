@@ -86,15 +86,6 @@ export async function POST(
 
     const lpAnalysis = (designVersion?.diagnostics_json as { lp_analysis?: unknown } | null)?.lp_analysis || null
 
-    // 推奨CV値生成
-    const recommendations = generateRecommendations(
-      lp.final_event_name,
-      eventsA,
-      eventsB,
-      { start: startDate, end: endDate },
-      lpAnalysis as Parameters<typeof generateRecommendations>[4]
-    )
-
     // 月次成果データ取得（z検定のため）
     const prevMonth = getPrevMonth(year_month)
     const { data: performances } = await supabase
@@ -104,8 +95,38 @@ export async function POST(
       .in('year_month', [year_month, prevMonth])
       .order('year_month', { ascending: false })
 
+    // 前月のdesign_versionsから前月P_A値とイベント数を取得
+    const { data: prevDesignVersion } = await supabase
+      .from('design_versions')
+      .select('recommendations_json')
+      .eq('lp_id', lpId)
+      .eq('year_month', prevMonth)
+      .single()
+
+    const prevRecommendations = prevDesignVersion?.recommendations_json as { items?: Array<{ event_name: string; p_a: number; count_a_event: number }> } | null
+    const prevMonthPaValues: Record<string, number> = {}
+    const prevMonthEventCounts: Record<string, number> = {}
+    if (prevRecommendations?.items) {
+      for (const item of prevRecommendations.items) {
+        prevMonthPaValues[item.event_name] = item.p_a
+        prevMonthEventCounts[item.event_name] = item.count_a_event
+      }
+    }
+
     const currentPerf = performances?.find((p) => p.year_month === year_month)
     const prevPerf = performances?.find((p) => p.year_month === prevMonth)
+
+    // 推奨CV値生成
+    const recommendations = generateRecommendations(
+      lp.final_event_name,
+      eventsA,
+      eventsB,
+      { start: startDate, end: endDate },
+      lpAnalysis as Parameters<typeof generateRecommendations>[4],
+      lp.final_cv_value ?? null,
+      prevMonthPaValues,
+      prevMonthEventCounts
+    )
 
     // CVR z検定
     const cvrResult = currentPerf && prevPerf
@@ -135,6 +156,11 @@ export async function POST(
       finalCvCount: currentPerf?.final_cv,
       currentCpa: currentPerf?.cpa,
       finalEventCountA: eventsA.find((e) => e.event_name === lp.final_event_name)?.count ?? 0,
+      lpAnalysis: lpAnalysis as Parameters<typeof generateDiagnostics>[0]['lpAnalysis'],
+      prevMonthEventCounts,
+      currentClicks: currentPerf?.clicks,
+      currentCost: currentPerf?.cost,
+      currentCvr: currentPerf ? (currentPerf.final_cv / currentPerf.clicks) : undefined,
     })
 
     // design_versions に保存

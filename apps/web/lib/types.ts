@@ -16,6 +16,7 @@ export interface LP {
   url: string;
   final_event_name: string;
   target_cpa: number;
+  final_cv_value: number | null;
   created_at: string;
 }
 
@@ -61,6 +62,7 @@ export interface DesignVersion {
   final_value_base: number;
   recommendations_json: RecommendationsJson | null;
   diagnostics_json: DiagnosticsJson | null;
+  current_cv_settings: Record<string, number> | null;
   created_at: string;
 }
 
@@ -88,6 +90,7 @@ export interface RecommendationItem {
   cap_applied: string | null;
   label: string;
   is_detected_in_lp: boolean;
+  stability?: 'stable' | 'unstable' | 'insufficient';
 }
 
 export interface RecommendationsJson {

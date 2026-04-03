@@ -66,9 +66,9 @@ export default async function LPDetailPage({
     .eq('year_month', yearMonth)
     .single()
 
-  const activeEventNames = (cvEventSettings ?? [])
+  const activeSettings = (cvEventSettings ?? [])
     .filter((s: { status: string }) => s.status === 'active')
-    .map((s: { event_name: string }) => s.event_name)
+  const activeEventNames = activeSettings.map((s: { event_name: string }) => s.event_name)
 
   const endedSettings = (cvEventSettings ?? [])
     .filter((s: { status: string }) => s.status === 'ended')
@@ -212,10 +212,11 @@ export default async function LPDetailPage({
       )}
 
       {/* CV設定変更の影響分析 */}
-      {endedSettings.length > 0 && allPerformances && allPerformances.length >= 2 && (
+      {(endedSettings.length > 0 || activeSettings.length > 0) && allPerformances && allPerformances.length >= 2 && (
         <div className="mb-4">
           <EventImpactAnalysis
             endedSettings={endedSettings}
+            activeSettings={activeSettings}
             performances={allPerformances as import('@/lib/types').PerformanceMonth[]}
             eventLabels={{
               form_start: 'フォーム入力開始',

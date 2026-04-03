@@ -309,6 +309,9 @@ export function CurrentCVEditor({ lpId, yearMonth, items }: CurrentCVEditorProps
                           {item.cap_applied === 'form_start_cap70' ? 'Cap70' : 'Discount'}
                         </span>
                       )}
+                      {item.stability === 'unstable' && (
+                        <span className="text-xs px-1.5 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded">変動あり</span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-400 mt-0.5">{item.event_name}</div>
                   </td>

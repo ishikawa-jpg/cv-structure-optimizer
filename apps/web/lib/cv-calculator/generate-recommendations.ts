@@ -28,6 +28,16 @@ const PRIORITY_ORDER = [
   'section_view', 'scroll_75', 'scroll_50',
 ]
 
+const SYSTEM_EVENTS = new Set([
+  'page_view', 'session_start', 'first_visit', 'user_engagement',
+  'scroll', 'click', 'file_download',
+  'video_start', 'video_progress', 'video_complete',
+])
+
+function isSystemEvent(eventName: string): boolean {
+  return SYSTEM_EVENTS.has(eventName) || eventName.startsWith('gtm.')
+}
+
 function getEventType(eventName: string): EventType {
   if (eventName.startsWith('form_start')) return 'form_start'
   if (eventName.startsWith('form_view')) return 'form_view'
@@ -74,7 +84,10 @@ export function generateRecommendations(
   eventsA: EventCountResult[],
   eventsB: EventCountResult[],
   dateRange: { start: string; end: string },
-  lpAnalysis?: LPAnalysisData | null
+  lpAnalysis?: LPAnalysisData | null,
+  finalCvValue?: number | null,
+  prevMonthPaValues?: Record<string, number>,
+  prevMonthEventCounts?: Record<string, number>
 ): RecommendationsJson {
   const finalA = eventsA.find((e) => e.event_name === finalEventName)?.count || 0
   const finalB = eventsB.find((e) => e.event_name === finalEventName)?.count || 0
@@ -105,15 +118,44 @@ export function generateRecommendations(
     }
   }
 
-  const candidates = eventsA
+  // 候補リスト内（優先度あり）
+  const priorityCandidates = eventsA
     .filter((e) => candidateNames.some((c) => e.event_name.startsWith(c)))
     .filter((e) => e.event_name !== finalEventName)
     .sort((a, b) => getPriority(a.event_name) - getPriority(b.event_name))
-    .slice(0, 6)
+
+  // 候補リスト外のカスタムイベント（件数順）
+  const customCandidates = eventsA
+    .filter((e) => !candidateNames.some((c) => e.event_name.startsWith(c)))
+    .filter((e) => e.event_name !== finalEventName)
+    .filter((e) => !isSystemEvent(e.event_name))
+    .sort((a, b) => b.count - a.count)
+
+  // 優先候補を先に並べ、残りスロットにカスタム候補を追加（合計最大6件）
+  const seen = new Set(priorityCandidates.map((e) => e.event_name))
+  const candidates = [
+    ...priorityCandidates,
+    ...customCandidates.filter((e) => !seen.has(e.event_name)),
+  ].slice(0, 6)
 
   const items: RecommendationItem[] = candidates.map((e) => {
     const countB = eventsB.find((b) => b.event_name === e.event_name)?.count || 0
-    const result = calcCVValue(finalA, e.count, finalB, countB, getEventType(e.event_name))
+    const result = calcCVValue(finalA, e.count, finalB, countB, getEventType(e.event_name), finalCvValue)
+
+    // stability 計算
+    let stability: 'stable' | 'unstable' | 'insufficient' = 'insufficient'
+    if (prevMonthPaValues && prevMonthEventCounts) {
+      const prevPa = prevMonthPaValues[e.event_name]
+      const prevCount = prevMonthEventCounts[e.event_name] ?? 0
+      if (prevPa === undefined || prevCount < 30 || e.count < 30) {
+        stability = 'insufficient'
+      } else if (prevPa > 0 && Math.abs(result.p_a - prevPa) / prevPa > 0.5) {
+        stability = 'unstable'
+      } else {
+        stability = 'stable'
+      }
+    }
+
     return {
       event_name: e.event_name,
       cv_value: result.value,
@@ -128,6 +170,7 @@ export function generateRecommendations(
       cap_applied: result.cap_applied,
       label: EVENT_LABELS[e.event_name] || e.event_name,
       is_detected_in_lp: detectedInLP.has(e.event_name),
+      stability,
     }
   })
 
